@@ -3,44 +3,76 @@ let router = express.Router();
 let ws = require('express-ws');
 ws(router);
 
-function getClientIp(req) {
-	let ip =  req.headers['x-forwarded-for'] 　||　req.headers['x-real-ip']
-	if(ip){
-	    // 拿到ip进行下一步操作
-	    // res.send({ip:ip})
-      console.log(ip);
-	}else{ 
-	    //获取不到时
-	    // res.send(req.ip().substring(req.ip().lastIndexOf(":") + 1);)		
-      console.log(req.ip.substring(req.ip.lastIndexOf(":") + 1));
-	}
-}
-
 let userList = [];
 
-router.get('/myapp/wsLogin/:nickname', (req, res) => {
-  // console.log(req.ip);
-  // console.log(req.headers);
-  getClientIp(req)
-  const nickname = req.params.nickname;
-  console.log(nickname);
-  userList.push(nickname);
-  res.send({
-    code: 0
-  })
-  const params = {
-    type: 'userList',
-    data: userList
+const getUserInfo = () => {
+  // 昵称池
+  const nickname_pool = ['张一', '张二', '张三', '张四', '张五', '张六', '张七', '张八', '张九', '张麻子'];
+  const _userList = userList.map(item => item.nickname);
+  const new_arr = nickname_pool.filter(item => !_userList.includes(item));
+  if (new_arr.length == 0) {
+    return false;
+  }
+  // 过滤后昵称池的随机下标
+  const random_num = Math.floor(Math.random() * new_arr.length);
+  // 生成随机昵称 但不能出现重复的
+  // return new_arr[random_num];
+  return {
+    avatarIndex: random_num,
+    nickname: new_arr[random_num]
   };
-  wss.map(e => {
-    e.send(JSON.stringify(params));
-  })
+}
+
+router.post('/myapp/wsLogin', (req, res) => {
+  console.log(req.clientIp);
+  console.log(req.body, 'qqq');
+  const { ip } = req.body;
+
+  let userInfo;
+  const msgIpIndex = msgList.map(item => item.ip).findIndex(itemIp => itemIp == ip)
+  // 消息列表获取当前ip是否发过言
+  if (msgIpIndex != -1) {
+    const { userName, avatarIndex, ip } = msgList[msgIpIndex]
+    userInfo = { nickname: userName, avatarIndex, ip }
+  } else {
+    const ipIndex = userList.map(item => item.ip).findIndex(itemIp => itemIp == ip)
+    if (ipIndex == -1) {
+      userInfo = getUserInfo()
+    } else {
+      res.send({
+        code: 438,
+        data: {
+          nickname: userList[ipIndex].nickname
+        },
+        message: '你特么已经登陆了一次，还想干啥，老弟？'
+      })
+    }
+  }
+
+  if (userInfo) {
+    userList.push({ ...userInfo, ip });
+    res.send({
+      code: 0,
+      data: userInfo
+    })
+    const params = {
+      type: 'userList',
+      data: userList
+    };
+    wss.map(e => {
+      e.send(JSON.stringify(params));
+    })
+  } else {
+    res.send({
+      code: 439,
+      message: '聊天室人满了'
+    })
+  }
 })
 
-router.get('/myapp/wsLogout/:nickname', (req, res) => {
-  const nickname = req.params.nickname;
-  userList = userList.filter(item => item != nickname);
-  console.log(userList);
+router.post('/myapp/wsLogout', (req, res) => {
+  const { ip } = req.body;
+  userList = userList.filter(item => item.ip != ip);
   res.send({
     code: 0
   })
