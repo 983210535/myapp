@@ -29,32 +29,50 @@ router.post('/myapp/wsLogin', (req, res) => {
   const { ip } = req.body;
 
   let userInfo;
-  const msgIpIndex = msgList.map(item => item.ip).findIndex(itemIp => itemIp == ip)
   // 消息列表获取当前ip是否发过言
-  if (msgIpIndex != -1) {
-    const { userName, avatarIndex, ip } = msgList[msgIpIndex]
-    userInfo = { nickname: userName, avatarIndex, ip }
-  } else {
-    const ipIndex = userList.map(item => item.ip).findIndex(itemIp => itemIp == ip)
-    if (ipIndex == -1) {
-      userInfo = getUserInfo()
+  const msgIpIndex = msgList.map(item => item.ip).findIndex(itemIp => itemIp == ip)
+  // 用户列表获取当前ip是否存在
+  const ipIndex = userList.map(item => item.ip).findIndex(itemIp => itemIp == ip)
+  if (msgIpIndex == -1 && ipIndex == -1) {
+    userInfo = getUserInfo()
+    if (userInfo) {
+      userList.push({ ...userInfo, ip });
+      res.send({
+        code: 0,
+        data: userInfo
+      });
+      const params = {
+        type: 'inlineUserList',
+        data: userList
+      };
+      wss.map(e => {
+        e.send(JSON.stringify(params));
+      })
     } else {
       res.send({
-        code: 438,
-        data: {
-          nickname: userList[ipIndex].nickname
-        },
-        message: '你特么已经登陆了一次，还想干啥，老弟？'
+        code: 439,
+        message: '聊天室人满了'
       })
     }
-  }
-
-  if (userInfo) {
-    userList.push({ ...userInfo, ip });
+    return
+  }  else if (ipIndex != -1) {
+    console.log(222);
+    const { nickname, avatarIndex, ip } = userList[ipIndex]
+    userInfo = { nickname, avatarIndex, ip }
+    console.log(userInfo);
     res.send({
-      code: 0,
-      data: userInfo
+      code: 438,
+      data: {
+        nickname: userInfo.nickname,
+        avatarIndex: userInfo.avatarIndex
+      },
+      message: '你本机已打开过一个窗口，还想干啥，老弟？'
     })
+  } else if (msgIpIndex != -1) {
+    console.log(111);
+    const { userName, avatarIndex, ip } = msgList[msgIpIndex]
+    userInfo = { nickname: userName, avatarIndex, ip }
+      userList.push({ ...userInfo });
     const params = {
       type: 'userList',
       data: userList
@@ -62,10 +80,13 @@ router.post('/myapp/wsLogin', (req, res) => {
     wss.map(e => {
       e.send(JSON.stringify(params));
     })
-  } else {
     res.send({
-      code: 439,
-      message: '聊天室人满了'
+      code: 438,
+      data: {
+        nickname: userInfo.nickname,
+        avatarIndex: userInfo.avatarIndex
+      },
+      message: '你发过消息了，所以刷新不能切换身份'
     })
   }
 })
@@ -77,7 +98,7 @@ router.post('/myapp/wsLogout', (req, res) => {
     code: 0
   })
   const params = {
-    type: 'userList',
+    type: 'inlineUserList',
     data: userList
   };
   wss.map(e => {
