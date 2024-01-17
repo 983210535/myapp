@@ -26,17 +26,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+// 设置可以跨域的响应头必须是在app.use(router)之前，否则也是跨域失败
+app.all('*', function (req, res, next) {
+  console.log(123);
+  res.header('Access-Control-Allow-Origin', '*')
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Content-Length, Authorization, Accept,X-Requested-With')
+  res.header('Access-Control-Allow-Methods', 'PUT,POST,GET,DELETE,OPTIONS')
+  res.header('X-Powered-By', ' 3.2.1')
+  req.method == "OPTIONS" ? res.send(200) : next()
+});
+
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/socket', websocketRouter);
 
-// app.all('*', function (req, res, next) {
-//   res.header('Access-Control-Allow-Origin', '*')
-//   res.header('Access-Control-Allow-Headers', 'Content-Type,Content-Length, Authorization, Accept,X-Requested-With')
-//   res.header('Access-Control-Allow-Methods', 'PUT,POST,GET,DELETE,OPTIONS')
-//   res.header('X-Powered-By', ' 3.2.1')
-//   req.method == "OPTIONS" ? res.send(200) : next()
-// });
+
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
