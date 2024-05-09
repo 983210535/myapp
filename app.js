@@ -8,6 +8,7 @@ var bodyParser = require('body-parser');
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var websocketRouter = require('./routes/websocket');
+var gptRouter = require('./routes/gpt');
 
 var ws = require('express-ws');
 
@@ -28,7 +29,6 @@ app.use(bodyParser.json());
 
 // 设置可以跨域的响应头必须是在app.use(router)之前，否则也是跨域失败
 app.all('*', function (req, res, next) {
-  console.log(123);
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Headers', 'Content-Type,Content-Length, Authorization, Accept,X-Requested-With')
   res.header('Access-Control-Allow-Methods', 'PUT,POST,GET,DELETE,OPTIONS')
@@ -39,8 +39,7 @@ app.all('*', function (req, res, next) {
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/socket', websocketRouter);
-
-
+app.use('/gpt', gptRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
