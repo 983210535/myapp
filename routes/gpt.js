@@ -38,16 +38,33 @@ router.get('/merchants/page', function(req, res) {
   const { name } = req.query
   const sql = `
     SELECT
-      * 
+      Merchants.MerchantID AS id,
+      Merchants.MerchantName AS NAME,
+    CASE
+        
+        WHEN COUNT( Categories.CategoryID ) > 0 THEN
+        JSON_ARRAYAGG(
+        JSON_OBJECT( 'id', Categories.CategoryID, 'name', Categories.CategoryName )) ELSE JSON_ARRAY() 
+      END AS children 
     FROM
-      Merchants 
+      Merchants
+      LEFT JOIN Categories ON Merchants.MerchantID = Categories.MerchantID 
     WHERE
-      MerchantName LIKE ?
+      Merchants.MerchantName LIKE '%%' 
+    GROUP BY
+      Merchants.MerchantID;
   `
   executeQuery(sql, [`%${name}%`], res);
 });
 
-router.post('/merchants', function(req, res) {
+router.post('/merchants', [
+  body('name').notEmpty().withMessage('商户名称不能为空'),
+], function(req, res) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ msg: errors.array().map(item => item.msg).join(', ') });
+  }
+
   const { name } = req.body;
   console.log(name);
   const sql = `
@@ -60,26 +77,68 @@ router.post('/merchants', function(req, res) {
 router.delete('/merchants', function(req, res) {
   console.log(req.body);
   const ids = req.body
-  const sql = `
-    DELETE 
+
+  if (!Array.isArray(ids) || ids.length == 0) {
+    return res.status(400).send('请选择商户');
+  }
+  const categorySQL = `
+    SELECT 
+      *
     FROM
-      Merchants 
+      Categories
     WHERE
       MerchantID IN (?)
   `
-  executeQuery(sql, [ids], res);
+  db.query(categorySQL, [ids.join()], (error, result) => {
+    if (error) {
+      console.error('Error checking associated categories:', error);
+      return res.status(500).send('Internal Server Error');
+    }
+
+    // 如果存在关联分类数据，返回错误消息
+    if (result.length > 0) {
+      return res.status(400).send('当前商户已存在分类，清空分类后再删除');
+    }
+
+    const sql = `
+      DELETE 
+      FROM
+        Merchants 
+      WHERE
+        MerchantID IN (?)
+    `
+    executeQuery(sql, [ids], res);
+  });
 });
 
 router.delete('/merchants/:id', function(req, res) {
   const { id } = req.params
-  const sql = `
-    DELETE 
+  const categorySQL = `
+    SELECT 
+      *
     FROM
-      Merchants 
+      Categories
     WHERE
       MerchantID = ?
   `
-  executeQuery(sql, [id], res);
+  db.query(categorySQL, [id], (error, result) => {
+    if (error) {
+      console.error('Error checking associated categories:', error);
+      return res.status(500).send('Internal Server Error');
+    }
+    console.log(result);
+    if (result.length > 0) {
+      return res.status(400).send('当前商户已存在分类，清空分类后再删除');
+    }
+    const sql = `
+      DELETE 
+      FROM
+        Merchants 
+      WHERE
+        MerchantID = ?
+    `
+    executeQuery(sql, [id], res);
+  })
 });
 
 router.put('/merchants', function(req, res) {
@@ -125,8 +184,8 @@ router.get('/categories/page', function(req, res) {
 });
 
 router.post('/categories', [
-  body('name').notEmpty().withMessage('商户id不能为空'),
-  body('id').notEmpty().withMessage('分类名称不能为空')
+  body('name').notEmpty().withMessage('分类名称不能为空'),
+  body('id').notEmpty().withMessage('商户id不能为空')
 ], (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
